@@ -27,6 +27,7 @@ function normalizeMessage(value, key) {
 }
 function configured(channel) {
     const c = safeParse(channel.config, {});
+    if (channel.type==='email') return !!(c.smtp_host && (c.from || c.smtp_user) && c.to && (!c.smtp_user || c.smtp_pass));
     const required = {bark:['bark_key'],wecom:['corp_id','agent_id','secret'],'wecom-bot':['webhook_url'],tg:['bot_token','chat_id'],email:['smtp_host','smtp_user','smtp_pass','to'],webhook:['webhook_url'],ntfy:['server_url','topic'],dingtalk:['webhook_url'],feishu:['webhook_url']}[channel.type];
     return !!required && required.every(k=>typeof c[k] === 'string' ? !!c[k].trim() : !!c[k]);
 }

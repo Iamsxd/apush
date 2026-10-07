@@ -226,10 +226,10 @@ const pusher = {
                 case 'email':
                     {
                         const { smtp_host, smtp_port, smtp_user, smtp_pass, to } = channelConfig;
-                        if (!smtp_host || !smtp_user || !smtp_pass || !to) throw new Error('SMTP 配置不完整');
+                        if (!smtp_host || !(channelConfig.from || smtp_user) || (smtp_user && !smtp_pass) || !to) throw new Error('SMTP 配置不完整');
                         const subject = notif.title || notif.appName;
                         const html = render(tpl, notif, { rule_name: ruleName, source_id: channel.source_id });
-                        await sendMail({ host: smtp_host, port: parseInt(smtp_port) || 465, user: smtp_user, pass: smtp_pass, from: smtp_user, to, subject, html });
+                        await sendMail({ host: smtp_host, port: parseInt(smtp_port) || 465, user: smtp_user, pass: smtp_pass, from: channelConfig.from || smtp_user, to, subject, html });
                     }
                     break;
 
@@ -401,10 +401,10 @@ const pusher = {
                 case 'email':
                     {
                         const { smtp_host, smtp_port, smtp_user, smtp_pass, to } = channelConfig;
-                        if (!smtp_host || !smtp_user || !smtp_pass || !to) throw new Error('SMTP 配置不完整');
+                        if (!smtp_host || !(channelConfig.from || smtp_user) || (smtp_user && !smtp_pass) || !to) throw new Error('SMTP 配置不完整');
                         const subject = notif.title || notif.appName;
                         const html = render(tpl, notif, { rule_name: ruleName || '测试', source_id: 'test' });
-                        await sendMail({ host: smtp_host, port: parseInt(smtp_port) || 465, user: smtp_user, pass: smtp_pass, from: smtp_user, to, subject, html });
+                        await sendMail({ host: smtp_host, port: parseInt(smtp_port) || 465, user: smtp_user, pass: smtp_pass, from: channelConfig.from || smtp_user, to, subject, html });
                         return { ok: true };
                     }
 

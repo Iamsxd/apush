@@ -471,6 +471,7 @@
                         <div class="form-group"><label>消息类型</label><select v-model="channelForm.config.wecom_msgtype"><option value="textcard">卡片 (textcard)</option><option value="text">文本 (text)</option><option value="markdown">Markdown</option><option value="news">图文 (news)</option></select></div>
                         <div class="form-group" style="margin-bottom:0"><label>接收人 (留空为全员)</label><input type="text" v-model="channelForm.config.user_id" placeholder="@all"></div>
                     </div>
+                    <div v-if="channelForm.type === 'email'" class="form-group"><label>发件人（可选，默认 SMTP 账号）</label><input v-model="channelForm.config.from" placeholder="notify@example.com"></div>
                     <!-- 消息模板 -->
                     <div v-if="['bark','wecom','wecom-bot','dingtalk','tg','email','webhook','ntfy'].includes(channelForm.type)" style="background:#f1f3f5;padding:15px;border-radius:10px;margin-bottom:15px">
                         <div class="form-group" style="margin-bottom:0">

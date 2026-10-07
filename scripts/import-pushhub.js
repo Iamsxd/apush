@@ -5,11 +5,12 @@ const GatewayStore=require('../services/gateway-store');
 const {configured,hash}=require('../services/gateway-model');
 const {safeParse}=require('../utils');
 const store=new GatewayStore(db);
-const types={wecom:'wecom-bot',wecom_app:'wecom',telegram:'tg',bark:'bark',ntfy:'ntfy',email:'email',webhook:'webhook'};
+const types={wecom:'wecom-bot','wecom-app':'wecom',telegram:'tg',bark:'bark',ntfy:'ntfy',email:'email',webhook:'webhook'};
 function convert(type,c){
     if(type==='bark') return {bark_key:c.device_key,server_url:c.server_url};
-    if(type==='email') return {smtp_host:c.host,smtp_port:c.port,smtp_user:c.username,smtp_pass:c.password,to:c.to};
-    if(type==='wecom_app') return {corp_id:c.corp_id,agent_id:c.agent_id,secret:c.secret,user_id:c.to_user,wecom_msgtype:'text'};
+    if(type==='email') return {smtp_host:c.host,smtp_port:c.port||587,smtp_user:c.user,smtp_pass:c.password,from:c.from,to:c.to};
+    if(type==='wecom-app') return {corp_id:c.corp_id,agent_id:c.agent_id,secret:c.secret,user_id:c.user_id,wecom_msgtype:'text'};
+    if(type==='webhook') return {webhook_url:c.url,headers:c.headers};
     return {...c,...(type==='wecom'?{msgtype:'text'}:{})};
 }
 async function main(){

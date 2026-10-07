@@ -213,7 +213,8 @@ createApp({
                 cleanConfig.smtp_user = channelForm.value.config.smtp_user;
                 cleanConfig.smtp_pass = channelForm.value.config.smtp_pass;
                 cleanConfig.to = channelForm.value.config.to;
-                if (!cleanConfig.smtp_host || !cleanConfig.smtp_user || (!cleanConfig.smtp_pass && !channelForm.value.saved_secrets?.includes('smtp_pass')) || !cleanConfig.to) return showToast('SMTP 配置不能为空', 'error');
+                cleanConfig.from = channelForm.value.config.from;
+                if (!cleanConfig.smtp_host || !(cleanConfig.from || cleanConfig.smtp_user) || (cleanConfig.smtp_user && !cleanConfig.smtp_pass && !channelForm.value.saved_secrets?.includes('smtp_pass')) || !cleanConfig.to) return showToast('SMTP 配置不能为空', 'error');
             } else if (type === 'ntfy') {
                 cleanConfig.server_url = channelForm.value.config.server_url;
                 cleanConfig.topic = channelForm.value.config.topic;

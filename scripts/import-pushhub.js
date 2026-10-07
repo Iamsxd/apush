@@ -19,15 +19,14 @@ async function main(){
     await store.transaction(async conn=>{
         for(const ch of data.channels){
             if(!types[ch.type]) continue;
-            const [aliases]=await conn.query('SELECT id FROM push_channels WHERE alias=?',[ch.alias]);
-            if(aliases.length) continue;
+            const [aliases]=await conn.query('SELECT * FROM push_channels WHERE alias=?',[ch.alias]);
             const [candidates]=await conn.query('SELECT * FROM push_channels WHERE type=? ORDER BY id',[types[ch.type]]);
             // Reuse only an unassigned original channel, leaving explicit aliases intact.
-            const old=candidates.find(c=>c.alias===`ch_${c.id}`);
+            const old=aliases[0] || candidates.find(c=>c.alias===`ch_${c.id}`);
             const config=old ? {...safeParse(old.config,{})} : {};
             for(const [k,v] of Object.entries(convert(ch.type,ch.config))) if(v!==''&&v!==undefined&&v!==null) config[k]=v;
             const merged={type:types[ch.type],config};
-            const enabled=!!ch.enabled || (!!old && configured(merged));
+            const enabled=!!ch.enabled || (!aliases.length && !!old && configured(merged));
             if(old) await conn.query('UPDATE push_channels SET alias=?,enabled=?,config=? WHERE id=?',[ch.alias,enabled?1:0,JSON.stringify(config),old.id]);
             else await conn.query('INSERT INTO push_channels (name,type,config,alias,enabled) VALUES (?,?,?,?,?)',[ch.name,merged.type,JSON.stringify(config),ch.alias,enabled?1:0]);
         }

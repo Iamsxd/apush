@@ -234,13 +234,13 @@ createApp({
         };
         const deleteChannel = async (id) => {
             if (!confirm('确认删除该通道？')) return;
-            try { await fetch(`/api/manager/channels/${id}`, { method: 'DELETE' }); fetchData(); showToast('通道已删除'); }
+            try { const response = await fetch(`/api/manager/channels/${id}`, { method: 'DELETE' }); if (!response.ok) throw new Error((await response.json()).error); fetchData(); showToast('通道已删除'); }
             catch (e) { showToast('删除失败', 'error'); }
         };
 
         const testChannel = async () => {
             try {
-                const payload = { type: channelForm.value.type, config: channelForm.value.config, template: channelForm.value.template || '' };
+                const payload = { id: channelForm.value.id, name: channelForm.value.name, alias: channelForm.value.alias, enabled: channelForm.value.enabled, type: channelForm.value.type, config: channelForm.value.config, template: channelForm.value.template || '' };
                 const res = await fetch('/api/manager/channels/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (res.ok) showToast('测试通知已发送'); else { const err = await res.json(); showToast(err.error || '测试失败', 'error'); }
             } catch (e) { showToast('测试接口调用失败', 'error'); }

@@ -73,6 +73,7 @@ class GatewayStore {
         return this.transaction(async conn=>{
             const targets=safeParse(rule?.target_channel_ids,[]);
             const [channels]=targets.length ? await conn.query('SELECT * FROM push_channels WHERE id IN (?) ORDER BY id FOR UPDATE',[targets]) : [[]];
+            for (const target of targets) if (!channels.some(c=>c.id===Number(target))) channels.push({id:Number(target),alias:`ch_${target}`,name:'已删除的通道',type:'unknown'});
             const id=await this.insertMessage(conn,notif,sourceId,rule?.name,!!rule);
             await this.insertTasks(conn,id,{...notif,source_id:sourceId},channels,rule?.name,safeParse(rule?.channel_templates,{}));
             return id;

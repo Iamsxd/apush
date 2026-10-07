@@ -9,7 +9,7 @@ const secretFields = ['webhook_url','bark_key','secret','bot_token','smtp_pass',
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 function aliases(value) {
     if (!Array.isArray(value) || !value.length || value.length > 50 || value.some(x=>typeof x !== 'string' || !aliasRE.test(x))) throw new GatewayError(400,'渠道列表无效');
-    return [...new Set(value)];
+    return [...new Set(value)].sort();
 }
 function keyConfig(value) {
     if (!value || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 100) throw new GatewayError(400,'密钥名称无效');

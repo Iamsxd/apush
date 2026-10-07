@@ -38,11 +38,10 @@ const pusher = {
                 wecomTokenCache[cacheKey] = { token: res.data.access_token, expire: now + 7000 };
                 return res.data.access_token;
             }
-            console.error('获取企业微信Token失败:', res.data);
+            throw new Error('errcode=' + res.data.errcode);
         } catch (e) {
-            console.error('企业微信Token网络错误:', e.message);
+            throw e;
         }
-        return null;
     },
 
     // channelId, notif, ruleName, messageId, pushParams, ruleTemplate
@@ -262,7 +261,7 @@ const pusher = {
         } catch (e) {
             const providerCode = /(?:errcode|StatusCode)=(-?\d+)/.exec(e.message || '')?.[1];
             const status = e.response?.status;
-            const retryable = status === 429 || status >= 500 || ['ECONNRESET','ETIMEDOUT','ECONNABORTED','EAI_AGAIN','ECONNREFUSED'].includes(e.code) || ['-1','45009','45011'].includes(providerCode);
+            const retryable = status === 429 || status >= 500 || (e.responseCode >= 400 && e.responseCode < 500) || ['ECONNRESET','ETIMEDOUT','ECONNABORTED','EAI_AGAIN','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH'].includes(e.code) || ['-1','45009','45011'].includes(providerCode);
             const error = status ? `HTTP ${status}` : providerCode ? `提供商错误 ${providerCode}` : e.code || '发送失败，请检查通道配置或模板';
             return {success:false,error,retryable,http_status:status || null,duration_ms:Date.now()-start};
         }

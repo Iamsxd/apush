@@ -1,5 +1,5 @@
 """One bounded integration run, only internal HTTP sink; no provider messages."""
-import json, urllib.request, urllib.error, sys, time, threading
+import json, urllib.request, urllib.error, sys, time, subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 base=sys.argv[1] if len(sys.argv)>1 else 'http://127.0.0.1:17067'
 access=json.load(open('/srv/vps/vps-deployment/pushhub/secrets/access.json'))
@@ -16,17 +16,10 @@ status,_=call('/api/send',{'title':'未授权','message':'验证'})
 assert status==401, f'gateway missing: expected401 got{status}'
 _,login=call('/api/manager/auth',{'password':access['admin_password']})
 admin={'x-auth-token':login['token']}
-seen=[]
-class Sink(BaseHTTPRequestHandler):
-    def do_POST(self):
-        payload=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-        seen.append(payload)
-        self.send_response(503 if payload.get('title')=='重试验证' and sum(x.get('title')=='重试验证' for x in seen)==1 else 200)
-        self.end_headers(); self.wfile.write(b'{}')
-    def log_message(self,*args): pass
-server=HTTPServer(('0.0.0.0',17668),Sink)
-threading.Thread(target=server.serve_forever,daemon=True).start()
-_,channel=call('/api/manager/channels',{'name':'部署内部接收端','alias':'verify_sink','type':'ntfy','enabled':True,'config':{'server_url':'http://host.docker.internal:17668','topic':'verify'}} ,admin)
+sink_container='oracle-apush-stage-app-1'
+sink_code="""const fs=require('fs');const http=require('http');let seen=[];fs.writeFileSync('/tmp/gateway-sink.pid',String(process.pid));fs.writeFileSync('/tmp/gateway-seen.json','[]');http.createServer((req,res)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{const p=JSON.parse(raw);seen.push(p);fs.writeFileSync('/tmp/gateway-seen.json',JSON.stringify(seen));res.writeHead(p.title==='重试验证'&&seen.filter(x=>x.title==='重试验证').length===1?503:200);res.end('{}');});}).listen(17668,'127.0.0.1');"""
+subprocess.run(['docker','exec','-d',sink_container,'node','-e',sink_code],check=True)
+_,channel=call('/api/manager/channels',{'name':'部署内部接收端','alias':'verify_sink','type':'ntfy','enabled':True,'config':{'server_url':'http://127.0.0.1:17668','topic':'verify'}} ,admin)
 assert channel.get('success'),channel
 _,key=call('/api/manager/gateway/keys',{'name':'部署验证','allowed':['verify_sink'],'defaults':['verify_sink']},admin)
 assert 'token' in key,key
@@ -46,10 +39,11 @@ try:
         if state.get('status')=='delivered': break
         time.sleep(.3)
     assert state['status']=='delivered' and state['deliveries'][0]['attempts']==2,state
+    seen=json.loads(subprocess.check_output(['docker','exec',sink_container,'cat','/tmp/gateway-seen.json']))
     assert [x['title'] for x in seen].count('统一验证')==1 and any(x['title']=='兼容验证' for x in seen),seen
     assert call('/api/messages/'+job['request_id'],headers={'Authorization':'Bearer '+access['api_key']})[0]==404
     print('PASS: unified / Server酱 / scope / idempotency / ntfy sink / retries')
 finally:
     call('/api/manager/gateway/keys/'+key['id'],headers=admin,method='DELETE')
     call('/api/manager/channels/'+str(channel['id']),headers=admin,method='DELETE')
-    server.shutdown()
+    subprocess.run(['docker','exec',sink_container,'node','-e',"process.kill(Number(require('fs').readFileSync('/tmp/gateway-sink.pid','utf8')))"],check=True)

@@ -12,6 +12,8 @@
 
 > Self-hosted push notification relay. Route your messages from anywhere to everywhere.
 
+This is a maintained fork with a unified sender API, Server酱 compatibility, ntfy, scoped keys and a durable MySQL delivery queue. See [GATEWAY.md](GATEWAY.md) for additions and upgrade notes. Upstream functionality and MIT attribution are preserved.
+
 aPush is a lightweight, self-hosted middleware that receives messages from various sources (iPhone Shortcuts, Android SMS, monitoring tools, any webhook) and forwards them through configurable rules to multiple output channels — Bark, WeChat Work, DingTalk, Feishu, Telegram, Email, and custom webhooks.
 
 ---

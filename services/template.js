@@ -156,4 +156,22 @@ const DEFAULT_TEMPLATES = {
     })
 };
 
-module.exports = { render, DEFAULT_TEMPLATES };
+// Escape placeholder text according to whether the JSON template is inside a string.
+function renderJSON(template, notif, opts = {}) {
+    let quoted = false, escaped = false, result = '';
+    for (let i = 0; i < template.length;) {
+        const token = /^\{\{[\w.]+\}\}/.exec(template.slice(i))?.[0];
+        if (token) {
+            const value = render(token, notif, opts);
+            result += quoted ? JSON.stringify(value).slice(1,-1) : token === '{{metadata_json}}' ? value : JSON.stringify(value);
+            i += token.length;
+        } else {
+            const c = template[i++]; result += c;
+            if (escaped) escaped = false;
+            else if (c === '\\') escaped = true;
+            else if (c === '"') quoted = !quoted;
+        }
+    }
+    return JSON.parse(result);
+}
+module.exports = { renderJSON, render, DEFAULT_TEMPLATES };

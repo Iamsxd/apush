@@ -1,5 +1,9 @@
 # dependencies
 node_modules/
+secrets/
+backups/
+data/
+.superpowers/
 
 # secrets & local config — never commit
 .env

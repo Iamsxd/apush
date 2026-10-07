@@ -2,64 +2,40 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const pusher = require('../services/pusher');
-
-// --- 推送通道管理 ---
-
-router.get('/', async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT * FROM push_channels ORDER BY id DESC');
-        const channels = rows.map(row => {
-            if (typeof row.config === 'string') {
-                try { row.config = JSON.parse(row.config); } catch (e) {}
-            }
-            return row;
-        });
-        res.json(channels);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+const {GatewayError,redactChannel,mergeChannel} = require('../services/gateway-model');
+router.get('/',async(req,res)=>{
+    const [rows]=await db.query('SELECT * FROM push_channels ORDER BY id DESC');
+    res.json(rows.map(redactChannel));
 });
-
-router.post('/', async (req, res) => {
-    const { name, type, config, template } = req.body;
+async function save(req,res,next) {
     try {
-        await db.query('INSERT INTO push_channels (name, type, config, template) VALUES (?, ?, ?, ?)', [name, type, JSON.stringify(config), template || null]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-router.put('/:id', async (req, res) => {
-    const { name, type, config, template } = req.body;
+        const [rows]=req.params.id ? await db.query('SELECT * FROM push_channels WHERE id=?',[req.params.id]) : [[]];
+        if (req.params.id && !rows.length) throw new GatewayError(404,'通道不存在');
+        const c=mergeChannel(req.body,rows[0]);
+        const values=[c.name,c.type,JSON.stringify(c.config),c.template||null,c.alias,c.enabled?1:0];
+        if (req.params.id) { await db.query('UPDATE push_channels SET name=?,type=?,config=?,template=?,alias=?,enabled=? WHERE id=?',[...values,req.params.id]); res.json({success:true,id:Number(req.params.id)}); }
+        else { const [r]=await db.query('INSERT INTO push_channels (name,type,config,template,alias,enabled) VALUES (?,?,?,?,?,?)',values); res.json({success:true,id:r.insertId}); }
+    } catch(e) { if(e.code==='ER_DUP_ENTRY') e=new GatewayError(409,'渠道别名已存在'); next(e); }
+}
+router.post('/',save);
+router.put('/:id',save);
+router.delete('/:id',async(req,res)=>{
+    const conn=await db.getConnection();
     try {
-        await db.query('UPDATE push_channels SET name=?, type=?, config=?, template=? WHERE id=?', [name, type, JSON.stringify(config), template || null, req.params.id]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        await conn.beginTransaction();
+        await conn.query('SELECT id FROM push_channels WHERE id=? FOR UPDATE',[req.params.id]);
+        const [pending]=await conn.query("SELECT id FROM delivery_tasks WHERE channel_id=? AND status IN ('pending','processing') LIMIT 1",[req.params.id]);
+        if (pending.length) throw new GatewayError(409,'通道仍有待投递消息');
+        await conn.query('DELETE FROM push_channels WHERE id=?',[req.params.id]);
+        await conn.commit();
+    } catch(e) {await conn.rollback();throw e;} finally {conn.release();}
+    res.json({success:true});
 });
-
-router.delete('/:id', async (req, res) => {
-    try {
-        await db.query('DELETE FROM push_channels WHERE id = ?', [req.params.id]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+router.post('/test',async(req,res)=>{
+    const [rows]=req.body.id ? await db.query('SELECT * FROM push_channels WHERE id=?',[req.body.id]) : [[]];
+    const c=mergeChannel({...req.body,name:req.body.name||'测试'},rows[0]);
+    const notif={title:'测试通知 - aPush',message:'用于验证通道配置的测试通知',appID:'apush_test',appName:'aPush',metadata:{}};
+    await pusher.sendWithConfig(c.type,c.config,notif,'测试通知',null,{},c.template||null);
+    res.json({success:true});
 });
-
-router.post('/test', async (req, res) => {
-    try {
-        const { type, config, template } = req.body || {};
-        if (!type || !config) return res.status(400).json({ error: '缺少 type 或 config' });
-
-        const notif = {
-            title: '测试通知 - aPush',
-            message: `这是一条用于验证通道配置的测试通知（时间：${new Date().toLocaleString()}）`,
-            appID: 'apush_test',
-            appName: 'aPush',
-            icon: ''
-        };
-        // 有自定义模板则传入，否则 sendWithConfig 走默认模板
-        const result = await pusher.sendWithConfig(type, config, notif, '测试通知', null, {}, template || null);
-        res.json({ success: true, result: result || null });
-    } catch (e) {
-        console.error('通道测试失败:', e);
-        res.status(500).json({ error: e.message || '测试失败' });
-    }
-});
-
-module.exports = router;
+module.exports=router;

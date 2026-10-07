@@ -139,12 +139,12 @@ router.all(['/', '/:path'], async (req, res) => {
             rawBody: rawBody || ''
         };
 
-        res.json({ success: true });
 
         const log = require('../services/syslog');
         log.info('接收消息', `${notification.appName}: ${(notification.title || notification.message || '').substring(0, 80)}`);
 
-        filterEngine.process(notification, sourceId);
+        const messageId = await filterEngine.process(notification, sourceId);
+        res.json({ success: true, message_id: messageId, status: 'accepted' });
 
     } catch (e) {
         console.error('Webhook接收失败:', e);

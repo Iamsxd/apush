@@ -41,9 +41,7 @@ function validateToken(tok) {
 }
 
 function getClientIP(req) {
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-        || req.headers['x-real-ip']
-        || req.socket.remoteAddress
+    return req.ip || req.socket.remoteAddress
         || 'unknown';
 }
 

@@ -1,0 +1,11 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>aPush · 统一接入</title><link rel="stylesheet" href="/css/gateway.css"><script defer src="/js/gateway.js"></script></head><body>
+<header><a href="/">aPush</a><span>统一接入</span><a class="back" href="/">策略与通道管理 →</a></header>
+<main><section id="login" hidden><h1>登录 aPush</h1><p>使用原来的管理密码。</p><form id="login-form"><label>管理密码<input name="password" type="password" autocomplete="current-password" required></label><button>登录</button></form></section>
+<div id="panel" hidden><section><h1>一个接口，连接所有通知</h1><p>程序只需调用 <code>/api/send</code>。在 aPush 中配置通道，为不同程序分配密钥和权限。</p><p>HTTP 202 表示已持久入队，实际投递结果见下方队列。临时失败最多尝试 3 次。</p></section>
+<section><h2>接入密钥</h2><div id="keys"></div><details><summary>创建密钥</summary><form id="key-form"><label>名称<input name="name" placeholder="例如 NAS" required maxlength="100"></label><div id="channel-choices"></div><p class="hint">勾选允许使用的渠道和默认渠道。默认渠道必须在允许范围内；发送前须配置并启用。</p><button>创建密钥</button></form></details><div id="new-key" hidden><p>新密钥仅显示这一次，请保存：</p><pre id="token"></pre><button id="hide-token" type="button">已保存，隐藏</button></div></section>
+<section><div class="toolbar"><h2>投递队列</h2><button id="refresh" type="button">刷新</button></div><div class="scroll"><table><thead><tr><th>消息</th><th>渠道</th><th>状态</th><th>次数</th><th>最近错误</th></tr></thead><tbody id="tasks"></tbody></table></div><p class="hint">显示最近 100 个任务，包含规则转发和统一接口；完整历史见“流转记录”。</p></section>
+<section><h2>统一发送</h2><pre id="send-example"></pre><p>支持 low / normal / high / critical。省略 channels 时使用密钥默认渠道；填入通道的 API 别名。</p><h2>Server酱兼容</h2><pre id="compat-example"></pre><p>支持 GET、表单 POST 和 JSON POST 的 title/desp。软件需要允许修改服务器地址。完整密钥已包含 SCT 前缀。</p><h2>查询与幂等提交</h2><pre>GET /api/messages/&lt;request_id&gt;
+Authorization: Bearer &lt;同一个接入密钥&gt;
+
+POST /api/send 可选请求头：
+Idempotency-Key: &lt;任务唯一编号&gt;</pre><p class="hint">持久队列采用至少一次投递，网络中断时可能重复发送。幂等键防止重复入队，无法保证外部服务只接收一次。</p></section></div><p id="notice" role="status"></p></main></body></html>

@@ -103,7 +103,7 @@ createApp({
         const channelTypeLabel = (t) => ({
             bark:'Bark', wecom:'企业微信应用', 'wecom-bot':'企业微信机器人',
             dingtalk:'钉钉机器人', feishu:'飞书机器人', tg:'Telegram',
-            email:'邮件', webhook:'Webhook'
+            email:'邮件', webhook:'Webhook', ntfy:'ntfy'
         }[t] || t);
 
         const fetchStats = async () => {
@@ -185,27 +185,27 @@ createApp({
             if (type === 'bark') {
                 cleanConfig.bark_key = channelForm.value.config.bark_key;
                 cleanConfig.server_url = channelForm.value.config.server_url || '';
-                if (!cleanConfig.bark_key) return showToast('Bark Key不能为空', 'error');
+                if (!cleanConfig.bark_key && !channelForm.value.saved_secrets?.includes('bark_key')) return showToast('Bark Key不能为空', 'error');
             } else if (type === 'wecom') {
                 cleanConfig.corp_id = channelForm.value.config.corp_id;
                 cleanConfig.agent_id = channelForm.value.config.agent_id;
                 cleanConfig.secret = channelForm.value.config.secret;
                 cleanConfig.user_id = channelForm.value.config.user_id || '@all';
                 cleanConfig.wecom_msgtype = channelForm.value.config.wecom_msgtype || 'textcard';
-                if (!cleanConfig.corp_id || !cleanConfig.agent_id || !cleanConfig.secret) return showToast('企业微信配置项不能为空', 'error');
+                if (!cleanConfig.corp_id || !cleanConfig.agent_id || (!cleanConfig.secret && !channelForm.value.saved_secrets?.includes('secret'))) return showToast('企业微信配置项不能为空', 'error');
             } else if (type === 'wecom-bot' || type === 'feishu') {
                 cleanConfig.webhook_url = channelForm.value.config.webhook_url;
-                if (!cleanConfig.webhook_url) return showToast('Webhook 地址不能为空', 'error');
+                if (!cleanConfig.webhook_url && !channelForm.value.saved_secrets?.includes('webhook_url')) return showToast('Webhook 地址不能为空', 'error');
                 if (type === 'wecom-bot') cleanConfig.msgtype = channelForm.value.config.msgtype || 'text';
             } else if (type === 'dingtalk') {
                 cleanConfig.webhook_url = channelForm.value.config.webhook_url;
-                if (!cleanConfig.webhook_url) return showToast('Webhook 地址不能为空', 'error');
+                if (!cleanConfig.webhook_url && !channelForm.value.saved_secrets?.includes('webhook_url')) return showToast('Webhook 地址不能为空', 'error');
                 cleanConfig.secret = channelForm.value.config.secret || '';
                 cleanConfig.msgtype = channelForm.value.config.msgtype || 'markdown';
             } else if (type === 'tg') {
                 cleanConfig.bot_token = channelForm.value.config.bot_token;
                 cleanConfig.chat_id = channelForm.value.config.chat_id;
-                if (!cleanConfig.bot_token) return showToast('Bot Token 不能为空', 'error');
+                if (!cleanConfig.bot_token && !channelForm.value.saved_secrets?.includes('bot_token')) return showToast('Bot Token 不能为空', 'error');
                 if (!cleanConfig.chat_id) return showToast('Chat ID 不能为空', 'error');
             } else if (type === 'email') {
                 cleanConfig.smtp_host = channelForm.value.config.smtp_host;
@@ -213,12 +213,18 @@ createApp({
                 cleanConfig.smtp_user = channelForm.value.config.smtp_user;
                 cleanConfig.smtp_pass = channelForm.value.config.smtp_pass;
                 cleanConfig.to = channelForm.value.config.to;
-                if (!cleanConfig.smtp_host || !cleanConfig.smtp_user || !cleanConfig.smtp_pass || !cleanConfig.to) return showToast('SMTP 配置不能为空', 'error');
+                if (!cleanConfig.smtp_host || !cleanConfig.smtp_user || (!cleanConfig.smtp_pass && !channelForm.value.saved_secrets?.includes('smtp_pass')) || !cleanConfig.to) return showToast('SMTP 配置不能为空', 'error');
+            } else if (type === 'ntfy') {
+                cleanConfig.server_url = channelForm.value.config.server_url;
+                cleanConfig.topic = channelForm.value.config.topic;
+                cleanConfig.token = channelForm.value.config.token || '';
+                if (!cleanConfig.server_url || !cleanConfig.topic) return showToast('请填写 ntfy 服务器和主题', 'error');
             } else if (type === 'webhook') {
+                cleanConfig.headers = channelForm.value.config.headers || '';
                 cleanConfig.webhook_url = channelForm.value.config.webhook_url;
-                if (!cleanConfig.webhook_url) return showToast('Webhook URL不能为空', 'error');
+                if (!cleanConfig.webhook_url && !channelForm.value.saved_secrets?.includes('webhook_url')) return showToast('Webhook URL不能为空', 'error');
             }
-            const payload = { name: channelForm.value.name, type: channelForm.value.type, id: channelForm.value.id, config: cleanConfig, template: channelForm.value.template || '' };
+            const payload = { alias: channelForm.value.alias, enabled: channelForm.value.enabled ?? true, name: channelForm.value.name, type: channelForm.value.type, id: channelForm.value.id, config: cleanConfig, template: channelForm.value.template || '' };
             try {
                 const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (res.ok) { showModal.value = false; fetchData(); showToast(isEdit ? '通道已更新' : '通道添加成功'); }

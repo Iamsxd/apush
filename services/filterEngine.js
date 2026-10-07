@@ -1,5 +1,6 @@
 const db = require('../db');
-const pusher = require('./pusher');
+const GatewayStore = require('./gateway-store');
+const gateway = new GatewayStore(db);
 const Cache = require('./cache');
 const syslog = require('./syslog');
 const events = require('./events');
@@ -157,88 +158,15 @@ const filterEngine = {
                 }
             }
 
-            let iconBase64 = null;
-            if (typeof notif.icon === 'string' && notif.icon.trim() !== '') {
-                iconBase64 = notif.icon;
-            }
-
-            const [msgRes] = await db.query(
-                'INSERT INTO messages (source_id, title, content, app_name, app_id, url, metadata, raw_body, icon_base64, rule_name, action) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                [
-                    sourceId,
-                    notif.title || '',
-                    notif.message || '',
-                    notif.appName || '',
-                    notif.appID || '',
-                    notif.url || '',
-                    JSON.stringify(notif.metadata || {}),
-                    (notif.rawBody || '').substring(0, 65535),
-                    iconBase64,
-                    matchedRule ? matchedRule.name : null,
-                    matchedRule ? 'forwarded' : 'blocked'
-                ]
-            );
-
-            // 通知长轮询客户端有新消息
+            const messageId = await gateway.enqueueRule(notif,sourceId,matchedRule);
             events.notify();
-
-            if (!matchedRule) {
-                syslog.warn('消息被拦截', `${notif.appName}: 未命中任何规则`);
-                return;
-            }
-
-            syslog.info('命中规则', `[${matchedRule.name}] ${notif.appName}: ${(notif.title || notif.message || '').substring(0, 60)}`);
-
-            const targetChannelIds = safeParse(matchedRule.target_channel_ids, []);
-            const channelTemplates = safeParse(matchedRule.channel_templates, {});
-
-            if (targetChannelIds.length > 0) {
-                const messageId = msgRes.insertId;
-                const results = await Promise.all(
-                    targetChannelIds.map(id => {
-                        const ruleTemplate = channelTemplates[id] || null;
-                        return pusher.send(id, notif, matchedRule.name, messageId, {}, ruleTemplate);
-                    })
-                );
-
-                const deliveries = results.map((r, i) => ({ channelId: targetChannelIds[i], ...r }));
-
-                if (deliveries.length > 0) {
-                    const [channels] = await db.query(
-                        'SELECT id, name, type FROM push_channels WHERE id IN (?)',
-                        [deliveries.map(d => d.channelId)]
-                    );
-                    const chanMap = {};
-                    channels.forEach(c => { chanMap[c.id] = c; });
-
-                    const values = deliveries.map(d => {
-                        const ch = chanMap[d.channelId] || {};
-                        return [
-                            messageId, d.channelId, ch.type || '', ch.name || '',
-                            d.success ? 'success' : 'failed',
-                            d.success ? 200 : null,
-                            d.error ? d.error.substring(0, 500) : null,
-                            d.duration_ms || 0
-                        ];
-                    });
-
-                    const placeholders = values.map(() => '(?,?,?,?,?,?,?,?)').join(',');
-                    await db.query(
-                        `INSERT INTO delivery_logs (message_id, channel_id, channel_type, channel_name, status, http_status, error_msg, duration_ms) VALUES ${placeholders}`,
-                        values.flat()
-                    );
-
-                    // 记录投递结果到系统日志
-                    for (const d of deliveries) {
-                        if (!d.success) {
-                            syslog.error('投递失败', `${d.channelId}: ${d.error || '未知错误'}`);
-                        }
-                    }
-                }
-            }
+            if (!matchedRule) syslog.warn('消息被拦截', `${notif.appName}: 未命中任何规则`);
+            else syslog.info('命中规则', `[${matchedRule.name}] 已持久入队`);
+            return messageId;
 
         } catch (e) {
-            console.error('引擎处理出错:', e);
+            console.error('引擎处理出错:', e.code || e.name);
+            throw e;
         }
     }
 };

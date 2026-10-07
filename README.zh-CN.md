@@ -1,3 +1,5 @@
+本仓库是 aPush 的扩展 fork，新增统一发送 API、Server酱兼容、ntfy、接入密钥与 MySQL 持久投递队列。改造说明见 [GATEWAY.md](GATEWAY.md)，保留原项目功能和 MIT 许可证。
+
 <p align="center">
   <img src="https://img.shields.io/badge/aPush-v1.0-007aff?style=flat-square" alt="aPush">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license">

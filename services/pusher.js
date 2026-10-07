@@ -1,7 +1,7 @@
-const axios = require('axios');
+const axios = require('axios').create({timeout:10000,maxContentLength:1024*1024,maxBodyLength:1024*1024});
 const crypto = require('crypto');
 const { sendMail } = require('./mailer');
-const { render, DEFAULT_TEMPLATES } = require('./template');
+const { render, renderJSON, DEFAULT_TEMPLATES } = require('./template');
 const { formatDate, safeParse } = require('../utils');
 
 const escapeHtml = (str) => {
@@ -52,6 +52,7 @@ const pusher = {
         if (rows.length === 0) return { success: false, error: '通道不存在', duration_ms: 0 };
 
         const channel = rows[0];
+        if (!channel.enabled) return {success:false,retryable:false,error:'通道已禁用',duration_ms:0};
         const channelConfig = (typeof channel.config === 'string') ? JSON.parse(channel.config) : channel.config;
         const start = Date.now();
 
@@ -80,7 +81,7 @@ const pusher = {
                         const tplJson = tpl || DEFAULT_TEMPLATES.bark;
                         let payload;
                         try {
-                            payload = JSON.parse(render(tplJson, notif, { rule_name: ruleName, source_id: channel.source_id }));
+                            payload = renderJSON(tplJson, notif, { rule_name: ruleName, source_id: channel.source_id });
                         } catch (e) {
                             payload = { title: notif.title, body: notif.message, group: notif.appName };
                         }
@@ -150,18 +151,28 @@ const pusher = {
                     }
                     break;
 
+                case 'ntfy':
+                    {
+                        if (!channelConfig.server_url || !channelConfig.topic) throw new Error('ntfy 配置不完整');
+                        const text = tpl ? render(tpl, notif, {rule_name:ruleName}) : notif.message;
+                        await axios.post(channelConfig.server_url.replace(/\/$/,''), {
+                            topic:channelConfig.topic,title:notif.title,message:text,
+                            priority:({low:2,normal:3,high:4,critical:5})[notif.level || notif.metadata?.level] || 3
+                        }, {headers:channelConfig.token ? {Authorization:'Bearer '+channelConfig.token} : {}});
+                    }
+                    break;
                 case 'webhook':
                     {
                         const webhookUrl = channelConfig.webhook_url;
                         if (!webhookUrl) throw new Error('缺少 webhook_url');
-                        const body = tpl ? JSON.parse(render(tpl, notif, { rule_name: ruleName, source_id: channel.source_id })) : {
+                        const body = (ruleTemplate || channel.template) ? renderJSON(tpl, notif, { rule_name: ruleName, source_id: channel.source_id }) : {
                             title: notif.title,
                             content: notif.message,
                             app: notif.appName,
                             metadata: notif.metadata || {},
                             time: new Date().toISOString()
                         };
-                        await axios.post(webhookUrl, body);
+                        await axios.post(webhookUrl, body, {headers:channelConfig.headers || {}});
                     }
                     break;
 
@@ -173,7 +184,7 @@ const pusher = {
                         const text = render(tpl, notif, { rule_name: ruleName, source_id: channel.source_id });
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                             chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true
-                        });
+                        }).then(r=>{if(!r.data?.ok) throw new Error('Telegram 返回异常');});
                     }
                     break;
 
@@ -241,6 +252,7 @@ const pusher = {
                         if (res.data && res.data.StatusCode !== 0) throw new Error('StatusCode=' + res.data.StatusCode);
                     }
                     break;
+                default: throw new Error('不支持的通道类型');
             }
         };
 
@@ -248,8 +260,11 @@ const pusher = {
             await deliver();
             return { success: true, error: null, duration_ms: Date.now() - start };
         } catch (e) {
-            const errMsg = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-            return { success: false, error: errMsg, duration_ms: Date.now() - start };
+            const providerCode = /(?:errcode|StatusCode)=(-?\d+)/.exec(e.message || '')?.[1];
+            const status = e.response?.status;
+            const retryable = status === 429 || status >= 500 || ['ECONNRESET','ETIMEDOUT','ECONNABORTED','EAI_AGAIN','ECONNREFUSED'].includes(e.code) || ['-1','45009','45011'].includes(providerCode);
+            const error = status ? `HTTP ${status}` : providerCode ? `提供商错误 ${providerCode}` : e.code || '发送失败，请检查通道配置或模板';
+            return {success:false,error,retryable,http_status:status || null,duration_ms:Date.now()-start};
         }
     },
 
@@ -269,7 +284,7 @@ const pusher = {
                         const tplJson = tpl || DEFAULT_TEMPLATES.bark;
                         let payload;
                         try {
-                            payload = JSON.parse(render(tplJson, notif, { rule_name: ruleName || '测试', source_id: 'test' }));
+                            payload = renderJSON(tplJson, notif, { rule_name: ruleName || '测试', source_id: 'test' });
                         } catch (e) {
                             payload = { title: notif.title, body: notif.message, group: notif.appName };
                         }
@@ -412,13 +427,23 @@ const pusher = {
                         throw new Error('StatusCode=' + res.data.StatusCode);
                     }
 
+                case 'ntfy':
+                    {
+                        if (!channelConfig.server_url || !channelConfig.topic) throw new Error('ntfy 配置不完整');
+                        const text = tpl ? render(tpl, notif, {rule_name:ruleName}) : notif.message;
+                        await axios.post(channelConfig.server_url.replace(/\/$/,''), {
+                            topic:channelConfig.topic,title:notif.title,message:text,
+                            priority:({low:2,normal:3,high:4,critical:5})[notif.level || notif.metadata?.level] || 3
+                        }, {headers:channelConfig.token ? {Authorization:'Bearer '+channelConfig.token} : {}});
+                    }
+                    break;
                 case 'webhook':
                     {
                         if (!channelConfig.webhook_url) throw new Error('缺少 webhook_url');
-                        const body = tpl ? JSON.parse(render(tpl, notif, { rule_name: ruleName || '测试', source_id: 'test' })) : {
+                        const body = customTpl ? renderJSON(tpl, notif, { rule_name: ruleName || '测试', source_id: 'test' }) : {
                             title: notif.title, content: notif.message, app: notif.appName, time: new Date().toISOString()
                         };
-                        await axios.post(channelConfig.webhook_url, body);
+                        await axios.post(channelConfig.webhook_url, body, {headers:channelConfig.headers || {}});
                         return { ok: true };
                     }
 

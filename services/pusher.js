@@ -182,7 +182,8 @@ const pusher = {
                         if (!botToken || !chatId) throw new Error('缺少 bot_token 或 chat_id');
                         const text = render(tpl, notif, { rule_name: ruleName, source_id: channel.source_id });
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                            chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true
+                            chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true,
+                            disable_notification: (notif.level || notif.metadata?.level) === 'low'
                         }).then(r=>{if(!r.data?.ok) throw new Error('Telegram 返回异常');});
                     }
                     break;
@@ -359,7 +360,8 @@ const pusher = {
                         if (!token || !chatId) throw new Error('缺少 bot_token 或 chat_id');
                         const text = render(tpl, notif, { rule_name: ruleName || '测试', source_id: 'test' });
                         const res = await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-                            chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true
+                            chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true,
+                            disable_notification: (notif.level || notif.metadata?.level) === 'low'
                         });
                         if (res.data && res.data.ok) return { ok: true };
                         throw new Error('Telegram 返回异常');

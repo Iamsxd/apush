@@ -11,6 +11,7 @@ This fork of [5hux1n/apush](https://github.com/5hux1n/apush) retains the upstrea
 - Channels have stable aliases and enable switches, redacted credentials with blank-preserving edits; ntfy and authenticated custom Webhooks added.
 - Both unified sends and legacy webhook rule results persist in MySQL before acknowledgment. Temporary errors retry up to 3 total attempts, interrupted jobs recover, enterprise robot sends are spaced at least 3100ms per Webhook. HTTP requests time out at 10 seconds. SMTP uses Nodemailer with TLS certificate validation.
 - Optional `Idempotency-Key` prevents duplicate enqueue per sender; changing content under the same key returns409. Target validation is atomic.
+- Telegram messages with `level: "low"` are sent silently; normal and high priority messages retain notification alerts.
 
 HTTP202 means queued, not phone receipt. Delivery is at least once: external providers may receive duplicates after a crash or uncertain network result. Keys are checked on acceptance; revoking a key does not cancel already accepted messages. Disabling a channel stops later attempts; deleted/disabled targets fail visibly. Existing source Webhook tokens remain separate from gateway keys. API-selected targets use channel templates directly; legacy ingress retains rule filtering and rule template overrides.
 
@@ -34,4 +35,4 @@ Specific deployment details and all credentials are kept outside this repository
 
 ## Validation
 
-`node --test test/gateway-model.test.js` checks scope/normalization and secret editing. `test/staging-gateway.py` is an operator-driven, bounded integration check against MySQL and an internal HTTP sink; it expects this deployment's protected access file. It never sends to real recipients.
+`npm test` checks scope/normalization, secret editing, and Telegram silent delivery for low priority messages through both saved channels and direct configuration. `test/staging-gateway.py` is an operator-driven, bounded integration check against MySQL and an internal HTTP sink; it expects this deployment's protected access file. It never sends to real recipients.

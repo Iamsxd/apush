@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/gateway-model.test.js"
+    "test": "node --test test/gateway-model.test.js test/telegram-silent.test.js"
   },
   "keywords": [
     "push",
